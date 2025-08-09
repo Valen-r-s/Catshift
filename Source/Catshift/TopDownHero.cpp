@@ -40,6 +40,64 @@ ATopDownHero::ATopDownHero()
     GetCharacterMovement()->bUseControllerDesiredRotation = false;
 }
 
+void ATopDownHero::OnMoveClickStarted()
+{
+    bRMBHeld = true;
+
+    FVector MousePoint;
+    if (!GetMouseWorldPoint(MousePoint)) return;
+
+    FVector Dest;
+    ProjectToNavMesh(MousePoint, Dest);
+
+    MoveTarget = Dest;
+    bHasMoveTarget = true;
+
+    UpdateTargetMarker(Dest);
+    IssueSimpleMoveTo(Dest);
+
+    // orientar hacia el primer destino
+    FaceDirectionXY((Dest - GetActorLocation()).GetSafeNormal2D());
+}
+
+void ATopDownHero::OnMoveClickTriggered()
+{
+    if (!bRMBHeld) return;
+
+    FVector MousePoint;
+    if (!GetMouseWorldPoint(MousePoint)) return;
+
+    FVector Dest;
+    ProjectToNavMesh(MousePoint, Dest);
+
+    // actualizar destino constantemente mientras se mantiene RMB
+    MoveTarget = Dest;
+    bHasMoveTarget = true;
+
+    UpdateTargetMarker(Dest);
+    IssueSimpleMoveTo(Dest); // refresca el path hacia el nuevo punto
+
+    // opcional: reorientar mientras se actualiza
+    FaceDirectionXY((Dest - GetActorLocation()).GetSafeNormal2D());
+}
+
+void ATopDownHero::OnMoveClickCompleted()
+{
+    bRMBHeld = false;
+
+    if (bStopOnRMBRelease)
+    {
+        // parar en el sitio y ocultar marcador
+        CancelClickMove();
+    }
+    else
+    {
+        // estilo LoL: conserva el último destino emitido
+        if (TargetMarker) TargetMarker->SetActorHiddenInGame(false);
+    }
+}
+
+
 void ATopDownHero::BeginPlay()
 {
     Super::BeginPlay();
@@ -53,8 +111,11 @@ void ATopDownHero::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
     {
         if (IA_MoveClick)
         {
-            EIC->BindAction(IA_MoveClick, ETriggerEvent::Started, this, &ATopDownHero::OnMoveClick);
+            EIC->BindAction(IA_MoveClick, ETriggerEvent::Started, this, &ATopDownHero::OnMoveClickStarted);
+            EIC->BindAction(IA_MoveClick, ETriggerEvent::Triggered, this, &ATopDownHero::OnMoveClickTriggered);
+            EIC->BindAction(IA_MoveClick, ETriggerEvent::Completed, this, &ATopDownHero::OnMoveClickCompleted);
         }
+
         if (IA_Dash)
         {
             EIC->BindAction(IA_Dash, ETriggerEvent::Started, this, &ATopDownHero::OnDash);
@@ -163,27 +224,6 @@ void ATopDownHero::CancelClickMove()
     }
 }
 
-void ATopDownHero::OnMoveClick()
-{
-    FVector MousePoint;
-    if (!GetMouseWorldPoint(MousePoint))
-        return;
-
-    FVector Dest;
-    ProjectToNavMesh(MousePoint, Dest);
-
-    MoveTarget = Dest;
-    bHasMoveTarget = true;
-
-    // Actualiza marcador verde
-    UpdateTargetMarker(Dest);
-
-    // Emite movimiento por NavMesh
-    IssueSimpleMoveTo(Dest);
-
-    // Opcional: mira hacia el destino
-    FaceDirectionXY((Dest - GetActorLocation()).GetSafeNormal2D());
-}
 
 void ATopDownHero::OnDash()
 {
