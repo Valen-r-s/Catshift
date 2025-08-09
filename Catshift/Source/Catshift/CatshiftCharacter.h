@@ -49,6 +49,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
 	UInputAction* MouseLookAction;
 
+	/** Running Action (Shift) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<class UInputAction> RunAction;
+
+	// Opcional: si usas Mapping Context por código, ya lo tendrás
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<class UInputMappingContext> DefaultMappingContext;
+
+	void StartRunning();
+	void StopRunning();
+
 public:
 
 	/** Constructor */
@@ -84,6 +95,13 @@ public:
 	/** Handles jump pressed inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
+
+private:
+	bool bIsRunning = false;
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float WalkSpeed = 200.f;
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	float RunSpeed = 600.f;
 
 public:
 

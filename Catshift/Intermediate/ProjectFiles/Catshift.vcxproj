@@ -252,6 +252,7 @@
     <None Include="..\..\Catshift.uproject"/>
     <None Include="..\..\Source\Catshift.Target.cs"/>
     <None Include="..\..\Source\CatshiftEditor.Target.cs"/>
+    <None Include="..\..\.vsconfig"/>
     <None Include="..\..\Config\DefaultEditor.ini"/>
     <None Include="..\..\Config\DefaultEditorPerProjectUserSettings.ini"/>
     <None Include="..\..\Config\DefaultEngine.ini"/>

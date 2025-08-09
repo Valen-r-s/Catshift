@@ -45,7 +45,7 @@ APlatformingCharacter::APlatformingCharacter()
 	GetCharacterMovement()->bUseSeparateBrakingFriction = true;
 
 	GetCharacterMovement()->GroundFriction = 4.0f;
-	GetCharacterMovement()->MaxWalkSpeed = 750.0f;
+	GetCharacterMovement()->MaxWalkSpeed = 200.0f;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.0f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2500.0f;
 	GetCharacterMovement()->PerchRadiusThreshold = 15.0f;

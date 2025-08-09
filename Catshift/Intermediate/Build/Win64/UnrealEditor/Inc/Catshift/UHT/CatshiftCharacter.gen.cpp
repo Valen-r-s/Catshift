@@ -18,6 +18,7 @@ ENGINE_API UClass* Z_Construct_UClass_ACharacter();
 ENGINE_API UClass* Z_Construct_UClass_UCameraComponent_NoRegister();
 ENGINE_API UClass* Z_Construct_UClass_USpringArmComponent_NoRegister();
 ENHANCEDINPUT_API UClass* Z_Construct_UClass_UInputAction_NoRegister();
+ENHANCEDINPUT_API UClass* Z_Construct_UClass_UInputMappingContext_NoRegister();
 UPackage* Z_Construct_UPackage__Script_Catshift();
 // ********** End Cross Module References **********************************************************
 
@@ -320,6 +321,34 @@ struct Z_Construct_UClass_ACatshiftCharacter_Statics
 		{ "ToolTip", "Mouse Look Input Action" },
 #endif
 	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_RunAction_MetaData[] = {
+		{ "Category", "Input" },
+#if !UE_BUILD_SHIPPING
+		{ "Comment", "/** Running Action (Shift) */" },
+#endif
+		{ "ModuleRelativePath", "CatshiftCharacter.h" },
+#if !UE_BUILD_SHIPPING
+		{ "ToolTip", "Running Action (Shift)" },
+#endif
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_DefaultMappingContext_MetaData[] = {
+		{ "Category", "Input" },
+#if !UE_BUILD_SHIPPING
+		{ "Comment", "// Opcional: si usas Mapping Context por c\xef\xbf\xbd""digo, ya lo tendr\xef\xbf\xbds\n" },
+#endif
+		{ "ModuleRelativePath", "CatshiftCharacter.h" },
+#if !UE_BUILD_SHIPPING
+		{ "ToolTip", "Opcional: si usas Mapping Context por c\xef\xbf\xbd""digo, ya lo tendr\xef\xbf\xbds" },
+#endif
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_WalkSpeed_MetaData[] = {
+		{ "Category", "Movement" },
+		{ "ModuleRelativePath", "CatshiftCharacter.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_RunSpeed_MetaData[] = {
+		{ "Category", "Movement" },
+		{ "ModuleRelativePath", "CatshiftCharacter.h" },
+	};
 #endif // WITH_METADATA
 	static const UECodeGen_Private::FObjectPropertyParams NewProp_CameraBoom;
 	static const UECodeGen_Private::FObjectPropertyParams NewProp_FollowCamera;
@@ -327,6 +356,10 @@ struct Z_Construct_UClass_ACatshiftCharacter_Statics
 	static const UECodeGen_Private::FObjectPropertyParams NewProp_MoveAction;
 	static const UECodeGen_Private::FObjectPropertyParams NewProp_LookAction;
 	static const UECodeGen_Private::FObjectPropertyParams NewProp_MouseLookAction;
+	static const UECodeGen_Private::FObjectPropertyParams NewProp_RunAction;
+	static const UECodeGen_Private::FObjectPropertyParams NewProp_DefaultMappingContext;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_WalkSpeed;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_RunSpeed;
 	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
 	static UObject* (*const DependentSingletons[])();
 	static constexpr FClassFunctionLinkInfo FuncInfo[] = {
@@ -347,6 +380,10 @@ const UECodeGen_Private::FObjectPropertyParams Z_Construct_UClass_ACatshiftChara
 const UECodeGen_Private::FObjectPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_MoveAction = { "MoveAction", nullptr, (EPropertyFlags)0x0020080000000015, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, MoveAction), Z_Construct_UClass_UInputAction_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_MoveAction_MetaData), NewProp_MoveAction_MetaData) };
 const UECodeGen_Private::FObjectPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_LookAction = { "LookAction", nullptr, (EPropertyFlags)0x0020080000000015, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, LookAction), Z_Construct_UClass_UInputAction_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_LookAction_MetaData), NewProp_LookAction_MetaData) };
 const UECodeGen_Private::FObjectPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_MouseLookAction = { "MouseLookAction", nullptr, (EPropertyFlags)0x0020080000000015, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, MouseLookAction), Z_Construct_UClass_UInputAction_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_MouseLookAction_MetaData), NewProp_MouseLookAction_MetaData) };
+const UECodeGen_Private::FObjectPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_RunAction = { "RunAction", nullptr, (EPropertyFlags)0x0124080000010015, UECodeGen_Private::EPropertyGenFlags::Object | UECodeGen_Private::EPropertyGenFlags::ObjectPtr, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, RunAction), Z_Construct_UClass_UInputAction_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_RunAction_MetaData), NewProp_RunAction_MetaData) };
+const UECodeGen_Private::FObjectPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_DefaultMappingContext = { "DefaultMappingContext", nullptr, (EPropertyFlags)0x0124080000010015, UECodeGen_Private::EPropertyGenFlags::Object | UECodeGen_Private::EPropertyGenFlags::ObjectPtr, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, DefaultMappingContext), Z_Construct_UClass_UInputMappingContext_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultMappingContext_MetaData), NewProp_DefaultMappingContext_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_WalkSpeed = { "WalkSpeed", nullptr, (EPropertyFlags)0x0040000000000001, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, WalkSpeed), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_WalkSpeed_MetaData), NewProp_WalkSpeed_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_RunSpeed = { "RunSpeed", nullptr, (EPropertyFlags)0x0040000000000001, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(ACatshiftCharacter, RunSpeed), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_RunSpeed_MetaData), NewProp_RunSpeed_MetaData) };
 const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UClass_ACatshiftCharacter_Statics::PropPointers[] = {
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_CameraBoom,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_FollowCamera,
@@ -354,6 +391,10 @@ const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UClass_ACatshift
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_MoveAction,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_LookAction,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_MouseLookAction,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_RunAction,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_DefaultMappingContext,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_WalkSpeed,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_ACatshiftCharacter_Statics::NewProp_RunSpeed,
 };
 static_assert(UE_ARRAY_COUNT(Z_Construct_UClass_ACatshiftCharacter_Statics::PropPointers) < 2048);
 UObject* (*const Z_Construct_UClass_ACatshiftCharacter_Statics::DependentSingletons[])() = {
@@ -392,10 +433,10 @@ ACatshiftCharacter::~ACatshiftCharacter() {}
 struct Z_CompiledInDeferFile_FID_Users_valen_OneDrive_Documents_GitHub_Catshift_Catshift_Source_Catshift_CatshiftCharacter_h__Script_Catshift_Statics
 {
 	static constexpr FClassRegisterCompiledInInfo ClassInfo[] = {
-		{ Z_Construct_UClass_ACatshiftCharacter, ACatshiftCharacter::StaticClass, TEXT("ACatshiftCharacter"), &Z_Registration_Info_UClass_ACatshiftCharacter, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(ACatshiftCharacter), 1904385192U) },
+		{ Z_Construct_UClass_ACatshiftCharacter, ACatshiftCharacter::StaticClass, TEXT("ACatshiftCharacter"), &Z_Registration_Info_UClass_ACatshiftCharacter, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(ACatshiftCharacter), 269834500U) },
 	};
 };
-static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_Users_valen_OneDrive_Documents_GitHub_Catshift_Catshift_Source_Catshift_CatshiftCharacter_h__Script_Catshift_188828760(TEXT("/Script/Catshift"),
+static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_Users_valen_OneDrive_Documents_GitHub_Catshift_Catshift_Source_Catshift_CatshiftCharacter_h__Script_Catshift_2009059223(TEXT("/Script/Catshift"),
 	Z_CompiledInDeferFile_FID_Users_valen_OneDrive_Documents_GitHub_Catshift_Catshift_Source_Catshift_CatshiftCharacter_h__Script_Catshift_Statics::ClassInfo, UE_ARRAY_COUNT(Z_CompiledInDeferFile_FID_Users_valen_OneDrive_Documents_GitHub_Catshift_Catshift_Source_Catshift_CatshiftCharacter_h__Script_Catshift_Statics::ClassInfo),
 	nullptr, 0,
 	nullptr, 0);

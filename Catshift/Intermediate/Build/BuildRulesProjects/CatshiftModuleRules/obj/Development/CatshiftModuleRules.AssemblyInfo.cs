@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CatshiftModuleRules")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Development")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a600819be22fc758184f381285f9516abbd69db1")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e525991ffd8bb6c7eab922267272e236720e108b")]
 [assembly: System.Reflection.AssemblyProductAttribute("CatshiftModuleRules")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CatshiftModuleRules")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -31,10 +31,11 @@ ACatshiftCharacter::ACatshiftCharacter()
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
+
 
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
@@ -51,11 +52,35 @@ ACatshiftCharacter::ACatshiftCharacter()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+// Running functionality
+void ACatshiftCharacter::StartRunning()
+{
+	bIsRunning = true;
+	GetCharacterMovement()->MaxWalkSpeed = RunSpeed; // Run velocity
+}
+
+// Stop Running functionality
+void ACatshiftCharacter::StopRunning()
+{
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed; 
+	bIsRunning = false;
+
+}
+
+
 void ACatshiftCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
+		// Runnig
+		// Start running (Shift)
+		EnhancedInputComponent->BindAction(RunAction, ETriggerEvent::Started, this, &ACatshiftCharacter::StartRunning);
+		// Stop running correr (Shift)
+		EnhancedInputComponent->BindAction(RunAction, ETriggerEvent::Completed, this, &ACatshiftCharacter::StopRunning);
+
 		// Jumping
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
@@ -111,6 +136,7 @@ void ACatshiftCharacter::DoMove(float Right, float Forward)
 	}
 }
 
+
 void ACatshiftCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
@@ -132,3 +158,4 @@ void ACatshiftCharacter::DoJumpEnd()
 	// signal the character to stop jumping
 	StopJumping();
 }
+
