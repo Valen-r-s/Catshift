@@ -17,8 +17,11 @@ public class Catshift : ModuleRules
 			"AIModule",
 			"StateTreeModule",
 			"GameplayStateTreeModule",
-			"UMG"
-		});
+			"UMG",
+            "NavigationSystem",      
+            "GameplayTasks"
+
+        });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
