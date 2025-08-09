@@ -2,18 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "InputActionValue.h"
 #include "TopDownHero.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 
-/**
- * Character top‑down con WASD, click‑to‑move y dash
- */
 UCLASS()
-class CATSHIFT_API ATopDownHero : public ACharacter
+class ATopDownHero : public ACharacter
 {
     GENERATED_BODY()
 
@@ -21,44 +17,81 @@ public:
     ATopDownHero();
 
 protected:
+    virtual void BeginPlay() override;
+    virtual void Tick(float DeltaSeconds) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-    // ---------- Cámara ----------
+    // ===================== COMPONENTES =====================
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
     USpringArmComponent* SpringArm;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
     UCameraComponent* TopDownCamera;
 
-public:
-    // ---------- Input Actions (asignar en BP_TopDownHero) ----------
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-    UInputAction* IA_Move = nullptr;       // Axis2D
+    // ===================== INPUTS (Enhanced Input) =====================
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    UInputAction* IA_MoveClick;        // Click derecho
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-    UInputAction* IA_ClickMove = nullptr;  // Digital
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    UInputAction* IA_Dash;             // Space
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-    UInputAction* IA_Dash = nullptr;       // Digital
+    // ===================== MOVIMIENTO POR CLICK =====================
+    // Punto de destino en el mundo (click derecho)
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|ClickToMove")
+    FVector MoveTarget;
 
-protected:
-    // ---------- Callbacks de input ----------
-    UFUNCTION() void Input_Move(const FInputActionValue& Value);
-    UFUNCTION() void Input_ClickMove();
-    UFUNCTION() void Input_Dash();
+    UPROPERTY(VisibleInstanceOnly, Category = "Movement|ClickToMove")
+    bool bHasMoveTarget = false;
 
-    // ---------- Click-to-move helper ----------
-    void MoveToWorldPoint(const FVector& WorldPoint);
+    // Radio para considerar “llegó”
+    UPROPERTY(EditAnywhere, Category = "Movement|ClickToMove")
+    float AcceptableRadius = 60.f;
 
-    // ---------- Dash ----------
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash")
-    float DashStrength = 1200.f;
+    // BP del marcador de destino (esfera verde)
+    UPROPERTY(EditDefaultsOnly, Category = "Movement|ClickToMove")
+    TSubclassOf<AActor> TargetMarkerClass;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dash")
-    float DashDuration = 0.10f;
+    // Instancia del marcador
+    UPROPERTY()
+    AActor* TargetMarker = nullptr;
+
+    UFUNCTION()
+    void OnMoveClick();                 // handler de click derecho
+
+    void IssueSimpleMoveTo(const FVector& Dest); // emite el movimiento por nav
+
+    void CancelClickMove();             // cancela path following + oculta marcador
+
+    // ===================== DASH (tipo "Flash") =====================
+    UPROPERTY(EditAnywhere, Category = "Dash")
+    float DashSpeed = 2000.f;         // distancia fija del flash
+
+    UPROPERTY(EditAnywhere, Category = "Dash")
+    float DashCooldown = 0.5f;          // CD
+
+
+    UPROPERTY(EditAnywhere, Category = "Dash")
+    float DashDuration = 0.15f;   // cuánto dura el dash
 
     bool bIsDashing = false;
-    FTimerHandle Timer_StopDash;
+    FTimerHandle TimerHandle_Dash;
 
-    void StopDash();
+    bool bDashOnCooldown = false;
+    FTimerHandle TimerHandle_DashCD;
+
+    UFUNCTION()
+    void OnDash();                      // handler de Space
+
+    // ===================== UTILIDADES =====================
+    // Obtiene el punto del mouse sobre el mundo (hit en geometría o intersección con plano Z del personaje)
+    bool GetMouseWorldPoint(FVector& OutPoint) const;
+
+    // Mueve/crea el marcador verde
+    void UpdateTargetMarker(const FVector& WorldPoint);
+
+    // Proyecta una ubicación a NavMesh si es posible
+    bool ProjectToNavMesh(const FVector& In, FVector& OutProjected, const FVector Extent = FVector(60, 60, 200)) const;
+
+    // Reorientar el actor hacia una dirección X-Y
+    void FaceDirectionXY(const FVector& Dir);
 };
