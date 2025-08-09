@@ -1,0 +1,14 @@
+{
+	"Targets": [
+		{
+			"Name": "Catshift",
+			"Path": "..\\Source\\Catshift.Target.cs",
+			"Type": "Game"
+		},
+		{
+			"Name": "CatshiftEditor",
+			"Path": "..\\Source\\CatshiftEditor.Target.cs",
+			"Type": "Editor"
+		}
+	]
+}
