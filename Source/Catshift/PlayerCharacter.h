@@ -105,6 +105,42 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetEnergyPercent() const { return (MaxEnergy > 0.f) ? (CurrentEnergy / MaxEnergy) : 0.f; }
 
+	/* =================== (AGREGADO) CONFIGURAR DAÑO POR HABILIDAD =================== */
+
+	// Perfiles de daño que puedes ajustar en BP por tipo de ataque/habilidad
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	float Damage_Light = 20.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	float Damage_Heavy = 35.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	float Damage_Skill1 = 50.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Damage", meta = (ClampMin = "0.0"))
+	float Damage_Skill2 = 80.f;
+
+	// Utilidades para daño temporal (sin tocar tu overlap/colisiones)
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Damage")
+	bool bUsingTempMeleeDamage = false;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Damage")
+	float SavedMeleeDamage = 0.f;
+
+	// Pisa MeleeDamage solo durante el golpe (y luego restaura)
+	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
+	void SetMeleeDamageTemporarily(float NewDamage);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
+	void RestoreMeleeDamage();
+
+	// Atajos para usar desde notifies
+	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
+	void StartMeleeWindowWithDamage(float Damage);  // SetMeleeDamageTemporarily + StartMeleeWindow
+
+	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
+	void EndMeleeWindowAndRestore();                // EndMeleeWindow + RestoreMeleeDamage
+
 protected:
 	/** Overlap de la hitbox activa */
 	UFUNCTION()

@@ -188,3 +188,37 @@ void APlayerCharacter::OnMeleeHitboxBeginOverlap(
 
 	AlreadyHit.Add(OtherActor);
 }
+
+/* ========== AÑADIDOS (no tocan tu lógica existente) ========== */
+
+void APlayerCharacter::SetMeleeDamageTemporarily(float NewDamage)
+{
+	// Guarda el original solo la primera vez que se pida temporal
+	if (!bUsingTempMeleeDamage)
+	{
+		SavedMeleeDamage = MeleeDamage;
+		bUsingTempMeleeDamage = true;
+	}
+	MeleeDamage = FMath::Max(0.f, NewDamage);
+}
+
+void APlayerCharacter::RestoreMeleeDamage()
+{
+	if (bUsingTempMeleeDamage)
+	{
+		MeleeDamage = SavedMeleeDamage;
+		bUsingTempMeleeDamage = false;
+	}
+}
+
+void APlayerCharacter::StartMeleeWindowWithDamage(float Damage)
+{
+	SetMeleeDamageTemporarily(Damage);
+	StartMeleeWindow(); // usa tu StartMeleeWindow original
+}
+
+void APlayerCharacter::EndMeleeWindowAndRestore()
+{
+	EndMeleeWindow();   // tu EndMeleeWindow original
+	RestoreMeleeDamage();
+}
