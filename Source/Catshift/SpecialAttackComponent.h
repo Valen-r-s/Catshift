@@ -10,6 +10,8 @@ class UAnimMontage;
 class UUserWidget;
 class UWidgetComponent;
 class ACharacter;
+class UNiagaraSystem;
+class ACameraActor;
 
 #ifndef YOURPROJECT_API
 #define YOURPROJECT_API
@@ -62,6 +64,31 @@ public:
 	/** Nombre del WidgetComponent de marcador en enemigos. Solo este se toca. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|UI")
 	FName EnemyWidgetComponentName = FName("TargetMarker");
+
+	/** FX pequeño (por enemigo en SmallHit) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|FX")
+	TSoftObjectPtr<UNiagaraSystem> SmallHitFX;
+
+	/** Socket opcional del enemigo para el SmallHit FX (ej. "spine_03") */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|FX")
+	FName SmallHitFXSocketName = NAME_None;
+
+	/** FX final (por enemigo al aplicar el daño grande) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|FX")
+	TSoftObjectPtr<UNiagaraSystem> FinalBurstFX;
+
+	/** Cámara de cierre */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|Camera")
+	float FinalCamBlendTime = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|Camera")
+	float FinalCamHoldTime = 1.1f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|Camera")
+	FVector FinalCamOffset = FVector(-300.f, 0.f, 120.f); // detrás/arriba del jugador
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecialAttack|Camera")
+	FRotator FinalCamRotOffset = FRotator(-5.f, 0.f, 0.f);
 
 	/* ==== API BP ==== */
 	UFUNCTION(BlueprintCallable, Category = "SpecialAttack")
@@ -137,4 +164,19 @@ private:
 
 	/* Lista de actores ignorados en movimiento (para restaurar) */
 	TArray<TWeakObjectPtr<AActor>> MoveIgnoredList;
+
+	/* Congelar enemigos mientras se ejecuta el especial */
+	struct FEnemyFreezeBackup
+	{
+		TEnumAsByte<EMovementMode> PrevMode = MOVE_Walking;
+		float PrevMaxWalkSpeed = 0.f;
+		bool bBrainWasRunning = false;
+	};
+	TMap<TWeakObjectPtr<ACharacter>, FEnemyFreezeBackup> FrozenEnemies;
+	void SetEnemiesFrozen(bool bFreeze);
+
+	/* Cámara temporal de cierre */
+	TWeakObjectPtr<ACameraActor> TempFinalCam;
+	void StartFinalCameraFocus();
+	void EndFinalCameraFocus();
 };

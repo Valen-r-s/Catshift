@@ -13,6 +13,11 @@
 #include "Engine/EngineTypes.h"      // ECC_*
 #include "Components/CapsuleComponent.h"
 #include "TimerManager.h"
+#include "AIController.h"
+#include "BrainComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Camera/CameraActor.h"
 
 USpecialAttackComponent::USpecialAttackComponent()
 {
@@ -210,6 +215,9 @@ void USpecialAttackComponent::EndTargeting()
 		return; // nada que ejecutar
 	}
 
+	// Congelar enemigos mientras dure la secuencia
+	SetEnemiesFrozen(true);
+
 	bIsExecuting = true;
 	CurrentTargetIndex = -1;
 	RunNextOrFinish();
@@ -334,6 +342,36 @@ void USpecialAttackComponent::ApplySmallHitToTarget(ACharacter* Target)
 	if (Dist > ApproachRadius * 1.5f) return;
 
 	UGameplayStatics::ApplyDamage(Target, SmallHitDamage, OwnerChar->GetController(), OwnerChar, nullptr);
+
+	// ===== FX por golpe pequeño =====
+	if (SmallHitFX.IsValid() || !SmallHitFX.ToSoftObjectPath().IsNull())
+	{
+		UNiagaraSystem* FX = SmallHitFX.IsValid() ? SmallHitFX.Get() : SmallHitFX.LoadSynchronous();
+		if (FX)
+		{
+			if (USkeletalMeshComponent* EnemyMesh = Target->GetMesh())
+			{
+				if (SmallHitFXSocketName != NAME_None && EnemyMesh->DoesSocketExist(SmallHitFXSocketName))
+				{
+					UNiagaraFunctionLibrary::SpawnSystemAttached(
+						FX, EnemyMesh, SmallHitFXSocketName,
+						FVector::ZeroVector, FRotator::ZeroRotator,
+						EAttachLocation::SnapToTarget, true);
+				}
+				else
+				{
+					UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(), FX, EnemyMesh->GetComponentLocation(),
+						FRotator::ZeroRotator);
+				}
+			}
+			else
+			{
+				UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+					GetWorld(), FX, Target->GetActorLocation(), FRotator::ZeroRotator);
+			}
+		}
+	}
 }
 
 void USpecialAttackComponent::ApplyFinalBurst()
@@ -341,16 +379,41 @@ void USpecialAttackComponent::ApplyFinalBurst()
 	ACharacter* OwnerChar = GetOwnerCharacter();
 	if (!OwnerChar) return;
 
+	// ===== FX (y daño) en TODOS los enemigos seleccionados =====
+	UNiagaraSystem* FinalFXAsset = nullptr;
+	if (FinalBurstFX.IsValid() || !FinalBurstFX.ToSoftObjectPath().IsNull())
+	{
+		FinalFXAsset = FinalBurstFX.IsValid() ? FinalBurstFX.Get() : FinalBurstFX.LoadSynchronous();
+	}
+
 	for (const TWeakObjectPtr<ACharacter>& WeakT : ValidTargetsThisRun)
 	{
 		if (ACharacter* T = WeakT.Get())
 		{
 			UGameplayStatics::ApplyDamage(T, FinalBurstDamage, OwnerChar->GetController(), OwnerChar, nullptr);
+
+			if (FinalFXAsset)
+			{
+				if (USkeletalMeshComponent* EnemyMesh = T->GetMesh())
+				{
+					UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(), FinalFXAsset, EnemyMesh->GetComponentLocation(), FRotator::ZeroRotator);
+				}
+				else
+				{
+					UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+						GetWorld(), FinalFXAsset, T->GetActorLocation(), FRotator::ZeroRotator);
+				}
+			}
 		}
 	}
 
-	// Asegurar restauración de colisiones/ignores
+	// ===== Cambio de cámara de cierre =====
+	StartFinalCameraFocus();
+
+	// Asegurar restauración de colisiones/ignores y descongelar
 	SetPassThroughEnemies(false);
+	SetEnemiesFrozen(false);
 
 	SelectedTargets.Empty();
 	ValidTargetsThisRun.Empty();
@@ -432,6 +495,141 @@ void USpecialAttackComponent::SetPassThroughEnemies(bool bEnable)
 
 		UpdateMoveIgnoreEnemies(false);
 	}
+}
+
+void USpecialAttackComponent::SetEnemiesFrozen(bool bFreeze)
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	if (bFreeze)
+	{
+		FrozenEnemies.Empty();
+
+		TArray<AActor*> EnemyActors;
+		UGameplayStatics::GetAllActorsWithTag(World, FName("Enemy"), EnemyActors);
+
+		for (AActor* A : EnemyActors)
+		{
+			ACharacter* EnemyChar = Cast<ACharacter>(A);
+			if (!EnemyChar) continue;
+
+			AAIController* AIC = Cast<AAIController>(EnemyChar->GetController());
+			UBrainComponent* Brain = AIC ? AIC->BrainComponent : nullptr;
+
+			FEnemyFreezeBackup& Backup = FrozenEnemies.Add(EnemyChar);
+			if (UCharacterMovementComponent* Move = EnemyChar->GetCharacterMovement())
+			{
+				Backup.PrevMode = Move->MovementMode;
+				Backup.PrevMaxWalkSpeed = Move->MaxWalkSpeed;
+
+				Move->StopMovementImmediately();
+				Move->DisableMovement(); // MovementMode = MOVE_None
+			}
+
+			if (AIC) { AIC->StopMovement(); }
+			if (Brain)
+			{
+				Backup.bBrainWasRunning = Brain->IsRunning();
+				Brain->StopLogic(TEXT("SpecialAttack_Freeze"));
+			}
+		}
+	}
+	else
+	{
+		for (auto& It : FrozenEnemies)
+		{
+			ACharacter* EnemyChar = It.Key.Get();
+			const FEnemyFreezeBackup& Backup = It.Value;
+			if (!EnemyChar) continue;
+
+			if (UCharacterMovementComponent* Move = EnemyChar->GetCharacterMovement())
+			{
+				// Restaurar modo y velocidad previos
+				if (Backup.PrevMode == MOVE_None) { Move->SetMovementMode(MOVE_Walking); }
+				else { Move->SetMovementMode(Backup.PrevMode); }
+
+				if (Backup.PrevMaxWalkSpeed > 0.f) { Move->MaxWalkSpeed = Backup.PrevMaxWalkSpeed; }
+			}
+
+			if (AAIController* AIC = Cast<AAIController>(EnemyChar->GetController()))
+			{
+				if (UBrainComponent* Brain = AIC->BrainComponent)
+				{
+					if (Backup.bBrainWasRunning) { Brain->RestartLogic(); }
+				}
+			}
+		}
+		FrozenEnemies.Empty();
+	}
+}
+
+void USpecialAttackComponent::StartFinalCameraFocus()
+{
+	ACharacter* OwnerChar = GetOwnerCharacter();
+	if (!OwnerChar) return;
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	APlayerController* PC = Cast<APlayerController>(OwnerChar->GetController());
+	if (!PC) return;
+
+	// Si ya hay una cámara temporal previa, límpiala
+	if (TempFinalCam.IsValid())
+	{
+		if (PC->GetViewTarget() == TempFinalCam.Get())
+		{
+			PC->SetViewTargetWithBlend(OwnerChar, FinalCamBlendTime);
+		}
+		TempFinalCam->Destroy();
+		TempFinalCam = nullptr;
+	}
+
+	// Colocar cámara detrás del personaje mirando hacia él
+	const FRotator OwnerYaw(0.f, OwnerChar->GetActorRotation().Yaw, 0.f);
+	const FTransform Basis(OwnerYaw, OwnerChar->GetActorLocation());
+	const FVector CamLoc = Basis.TransformPosition(FinalCamOffset);
+	const FRotator CamRot = (OwnerChar->GetActorLocation() - CamLoc).Rotation() + FinalCamRotOffset;
+
+	ACameraActor* Cam = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), CamLoc, CamRot);
+	if (!Cam) return;
+
+	TempFinalCam = Cam;
+
+	// Blend hacia la cámara temporal
+	PC->SetViewTargetWithBlend(Cam, FinalCamBlendTime);
+
+	// Programar regreso al jugador
+	FTimerHandle H;
+	World->GetTimerManager().SetTimer(H, this, &USpecialAttackComponent::EndFinalCameraFocus,
+		FinalCamHoldTime, false);
+}
+
+void USpecialAttackComponent::EndFinalCameraFocus()
+{
+	ACharacter* OwnerChar = GetOwnerCharacter();
+	if (!OwnerChar) return;
+
+	if (APlayerController* PC = Cast<APlayerController>(OwnerChar->GetController()))
+	{
+		PC->SetViewTargetWithBlend(OwnerChar, FinalCamBlendTime);
+	}
+
+	// Destruir la cámara temporal un poco después para no cortar el blend
+	if (UWorld* World = GetWorld())
+	{
+		if (TempFinalCam.IsValid())
+		{
+			ACameraActor* Cam = TempFinalCam.Get();
+			FTimerHandle H;
+			World->GetTimerManager().SetTimer(H, [Cam]()
+				{
+					if (IsValid(Cam)) Cam->Destroy();
+				}, FinalCamBlendTime + 0.05f, false);
+		}
+	}
+	TempFinalCam = nullptr;
 }
 
 void USpecialAttackComponent::Notify_DashBegin()

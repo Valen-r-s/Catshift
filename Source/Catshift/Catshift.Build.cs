@@ -17,7 +17,8 @@ public class Catshift : ModuleRules
 			"AIModule",
 			"StateTreeModule",
 			"GameplayStateTreeModule",
-			"UMG",
+			"UMG",  
+			"Niagara",
             "NavigationSystem",      
             "GameplayTasks"
 

@@ -222,3 +222,18 @@ void APlayerCharacter::EndMeleeWindowAndRestore()
 	EndMeleeWindow();   // tu EndMeleeWindow original
 	RestoreMeleeDamage();
 }
+float APlayerCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Dmg = FMath::Max(0.f, DamageAmount);
+	if (Dmg <= 0.f) return 0.f;
+
+	// 1) Primero baja la vida
+	ApplyDamageAmount(Dmg);   // aquí reduces CurrentHealth
+
+	// 2) Después llama al Super para que dispare Event AnyDamage en BP
+	Super::TakeDamage(Dmg, DamageEvent, EventInstigator, DamageCauser);
+
+	return Dmg;
+}
+

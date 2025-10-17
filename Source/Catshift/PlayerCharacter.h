@@ -22,6 +22,8 @@ class YOURPROJECT_API APlayerCharacter : public ACharacter
 public:
 	APlayerCharacter();
 	virtual void Tick(float DeltaTime) override;
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+		class AController* EventInstigator, AActor* DamageCauser) override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -41,7 +43,7 @@ public:
 	float CurrentEnergy = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Regen", meta = (ClampMin = "0.0"))
-	float EnergyRegenPerSec = 10.f;
+	float EnergyRegenPerSec = 5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Regen")
 	bool bAutoRegenEnergy = true;
