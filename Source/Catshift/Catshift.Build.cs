@@ -20,7 +20,9 @@ public class Catshift : ModuleRules
 			"UMG",  
 			"Niagara",
             "NavigationSystem",      
-            "GameplayTasks"
+            "GameplayTasks",
+			"Slate", 
+			"SlateCore"
 
         });
 

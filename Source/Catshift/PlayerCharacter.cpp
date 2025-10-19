@@ -4,6 +4,7 @@
 #include "Components/BoxComponent.h"
 #include "Kismet/GameplayStatics.h"
 // #include "Blueprint/UserWidget.h"   // Descomenta y añade "UMG" al .Build.cs si vas a crear HUD aquí
+#include "ShieldComponent.h"          // <-- para consultar el escudo
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -40,10 +41,7 @@ void APlayerCharacter::BeginPlay()
 		}
 	}
 
-	/* ====== Fallback: auto-detectar por Tag o nombre ======
-	   - Asigna a tu Box (hija de la espada) el Component Tag: "MeleeHitboxBP"
-		 o nómbrala "MeleeHitbox_BP" y la encontrará sola.
-	*/
+	/* ====== Fallback: auto-detectar por Tag o nombre ====== */
 	if (!PickedBox)
 	{
 		TArray<UBoxComponent*> Boxes;
@@ -100,9 +98,35 @@ void APlayerCharacter::Tick(float DeltaTime)
 
 /* =================== STATS HELPERS =================== */
 
+bool APlayerCharacter::IsShieldBlockingDamage() const
+{
+	// Si el actor no puede ser dañado (el escudo pone esto a false), bloquea
+	if (!CanBeDamaged())
+	{
+		return true;
+	}
+
+	// Seguridad extra: consulta el componente de escudo si existe
+	if (const UShieldComponent* Shield = FindComponentByClass<UShieldComponent>())
+	{
+		if (Shield->IsShieldActive())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void APlayerCharacter::ApplyDamageAmount(float Damage)
 {
 	if (Damage <= 0.f) return;
+
+	// Gate: NO tocar la vida si el escudo está activo
+	if (IsShieldBlockingDamage())
+	{
+		return;
+	}
+
 	CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.f, MaxHealth);
 	// if (CurrentHealth <= 0.f) { /* muerte */ }
 }
@@ -222,18 +246,24 @@ void APlayerCharacter::EndMeleeWindowAndRestore()
 	EndMeleeWindow();   // tu EndMeleeWindow original
 	RestoreMeleeDamage();
 }
+
 float APlayerCharacter::TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent,
 	AController* EventInstigator, AActor* DamageCauser)
 {
 	const float Dmg = FMath::Max(0.f, DamageAmount);
 	if (Dmg <= 0.f) return 0.f;
 
-	// 1) Primero baja la vida
-	ApplyDamageAmount(Dmg);   // aquí reduces CurrentHealth
+	// Gate: si el escudo bloquea, NO hacemos nada (ni vida ni eventos)
+	if (IsShieldBlockingDamage())
+	{
+		return 0.f;
+	}
 
-	// 2) Después llama al Super para que dispare Event AnyDamage en BP
+	// 1) Primero baja la vida
+	ApplyDamageAmount(Dmg);
+
+	// 2) Después llama al Super para disparar Event AnyDamage en BP (si lo usas)
 	Super::TakeDamage(Dmg, DamageEvent, EventInstigator, DamageCauser);
 
 	return Dmg;
 }
-

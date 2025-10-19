@@ -11,8 +11,9 @@
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "AIController.h"
+#include "BrainComponent.h"
 
-// Logs
 DEFINE_LOG_CATEGORY_STATIC(LogBoss, Log, All);
 
 ABossCharacter::ABossCharacter()
@@ -22,7 +23,7 @@ ABossCharacter::ABossCharacter()
 	AIControllerClass = ABossAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
-	// Queremos rotar el Actor manualmente (yaw en Tick), sin que el movimiento/Controller nos pisotee
+	// Rotación manual en yaw (no por movimiento/controlador)
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 	bUseControllerRotationYaw = false;
 
@@ -52,9 +53,9 @@ ABossCharacter::ABossCharacter()
 	FireCapsule->InitCapsuleSize(120.f, 220.f);
 
 	// Cooldowns por defecto
-	Cooldowns.Add(EBossAttack::Jab, 2.0f);  // Puño
-	Cooldowns.Add(EBossAttack::Swipe, 6.0f);  // Carga
-	Cooldowns.Add(EBossAttack::Slam, 5.0f);  // Suelo
+	Cooldowns.Add(EBossAttack::Jab, 2.0f);
+	Cooldowns.Add(EBossAttack::Swipe, 6.0f);
+	Cooldowns.Add(EBossAttack::Slam, 5.0f);
 	Cooldowns.Add(EBossAttack::FireBreath, 8.0f);
 	Cooldowns.Add(EBossAttack::Meteors, 12.0f);
 }
@@ -62,6 +63,11 @@ ABossCharacter::ABossCharacter()
 void ABossCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Salud inicial y evento HUD
+	MaxHealth = FMath::Max(1.f, MaxHealth);
+	Health = FMath::Clamp(Health, 0.f, MaxHealth);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	RightHitbox->OnComponentBeginOverlap.AddDynamic(this, &ABossCharacter::OnRightHitboxOverlap);
 	LeftHitbox->OnComponentBeginOverlap.AddDynamic(this, &ABossCharacter::OnLeftHitboxOverlap);
@@ -73,8 +79,8 @@ void ABossCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// Mantener el cono del fuego orientado
-	if (FireCapsule->GetCollisionEnabled() != ECollisionEnabled::NoCollision)
+	// Orientar cono de fuego si está activo
+	if (!bIsDead && FireCapsule->GetCollisionEnabled() != ECollisionEnabled::NoCollision)
 	{
 		if (APawn* P = UGameplayStatics::GetPlayerPawn(this, 0))
 		{
@@ -84,15 +90,14 @@ void ABossCharacter::Tick(float DeltaSeconds)
 		}
 	}
 
-	// Girar suavemente en Yaw (eje Z) hacia el jugador
-	if (bAlwaysFacePlayer && !bInIntro)
+	// Giro yaw hacia el jugador
+	if (!bIsDead && bAlwaysFacePlayer && !bInIntro)
 	{
 		if (APawn* P = UGameplayStatics::GetPlayerPawn(this, 0))
 		{
 			const FVector ToPlayer2D = (P->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
 			const float TargetYaw = ToPlayer2D.Rotation().Yaw;
 			const FRotator TargetRot(0.f, TargetYaw, 0.f);
-
 			const FRotator NewRot = FMath::RInterpTo(GetActorRotation(), TargetRot, DeltaSeconds, FaceInterpSpeed);
 			SetActorRotation(NewRot);
 		}
@@ -111,6 +116,7 @@ void ABossCharacter::PlayIntro()
 	if (UAnimInstance* Anim = GetMesh()->GetAnimInstance())
 	{
 		Anim->Montage_Play(IntroMontage, 1.f);
+
 		FOnMontageEnded End;
 		End.BindUObject(this, &ABossCharacter::OnMontageEnded);
 		Anim->Montage_SetEndDelegate(End, IntroMontage);
@@ -132,19 +138,19 @@ UAnimMontage* ABossCharacter::GetMontageFor(EBossAttack Attack) const
 
 bool ABossCharacter::PlayAttack(EBossAttack Attack, AActor* Target)
 {
-	if (bInIntro || bIsAttacking || IsRecovering()) return false;
+	if (bIsDead || bInIntro || bIsAttacking || IsRecovering()) return false;
 	if (!CanUseAttack(Attack)) return false;
 
 	UAnimMontage* Montage = GetMontageFor(Attack);
 
-	// Encara al objetivo (solo yaw) antes de atacar
+	// Mirar al objetivo
 	if (Target)
 	{
 		const FRotator Look = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target->GetActorLocation());
 		SetActorRotation(FRotator(0, Look.Yaw, 0));
 	}
 
-	// Caso especial: permitir Meteors aunque no haya montage
+	// Meteors sin montage
 	if (Attack == EBossAttack::Meteors && !Montage)
 	{
 		CurrentAttack = Attack;
@@ -161,7 +167,7 @@ bool ABossCharacter::PlayAttack(EBossAttack Attack, AActor* Target)
 		CurrentAttack = Attack;
 		bIsAttacking = true;
 
-		// Dash por código para la carga si no hay root motion
+		// Dash en Swipe si no hay root motion
 		if (Attack == EBossAttack::Swipe && bUseCodeChargeDash)
 		{
 			const FVector Dash = GetActorForwardVector() * ChargeDashStrength;
@@ -170,17 +176,15 @@ bool ABossCharacter::PlayAttack(EBossAttack Attack, AActor* Target)
 
 		Anim->Montage_Play(Montage, 1.f);
 
-		// Delegate de Blending-Out (para apagar hitboxes/efectos suavemente)
 		FOnMontageBlendingOutStarted BlendOut;
 		BlendOut.BindUObject(this, &ABossCharacter::OnMontageBlendingOut);
 		Anim->Montage_SetBlendingOutDelegate(BlendOut, Montage);
 
-		// Delegate de fin
 		FOnMontageEnded End;
 		End.BindUObject(this, &ABossCharacter::OnMontageEnded);
 		Anim->Montage_SetEndDelegate(End, Montage);
 
-		// Backup meteors por si olvidas notify
+		// Seguridad por si olvidas Notifies en Meteors
 		if (Attack == EBossAttack::Meteors)
 		{
 			TriggerMeteorWave(Target);
@@ -194,6 +198,8 @@ bool ABossCharacter::PlayAttack(EBossAttack Attack, AActor* Target)
 
 bool ABossCharacter::CanUseAttack(EBossAttack Attack) const
 {
+	if (bIsDead) return false;
+
 	const double Now = GetWorld()->GetTimeSeconds();
 	const float* Cd = Cooldowns.Find(Attack);
 	const double* Last = LastUsedTime.Find(Attack);
@@ -207,29 +213,48 @@ void ABossCharacter::MarkAttackUsed(EBossAttack Attack)
 	LastUsedTime.FindOrAdd(Attack) = GetWorld()->GetTimeSeconds();
 }
 
-void ABossCharacter::OnMontageEnded(UAnimMontage* Montage, bool)
+void ABossCharacter::OnMontageEnded(UAnimMontage* Montage, bool /*bInterrupted*/)
 {
+	// Intro termina
 	if (Montage == IntroMontage)
 	{
 		bInIntro = false;
 		OnIntroEnded.Broadcast();
 		return;
 	}
+
+	// Death: como respaldo, congela pose si aún no lo hicimos
+	if (Montage == DeathMontage)
+	{
+		if (!bDeathPoseFrozen)
+		{
+			FreezeDeathPose();
+		}
+		return;
+	}
+
+	// Cierre ataques
 	bIsAttacking = false;
 	CurrentAttack = EBossAttack::None;
 	DisableHitboxes();
 	StopFireBreath();
 
-	// Recuperación post-ataque
 	RecoverUntilTime = GetWorld()->GetTimeSeconds() + PostAttackRecovery;
 }
 
-void ABossCharacter::OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted)
+void ABossCharacter::OnMontageBlendingOut(UAnimMontage* Montage, bool /*bInterrupted*/)
 {
-	// Apaga ventanas de daño un poco antes del corte visual
+	// Si empieza a blendear el DeathMontage: congelar ya la pose
+	if (Montage == DeathMontage)
+	{
+		FreezeDeathPose();
+		return;
+	}
+
+	// Apaga ventanas de daño al salir
 	DisableHitboxes();
 
-	// Asegura cortar el loop/daño del fuego si está mezclando hacia fuera
+	// Cortar loop del fuego al salir de su montage
 	if (Montage == FireBreathMontage)
 	{
 		StopFireBreath();
@@ -239,6 +264,11 @@ void ABossCharacter::OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupt
 bool ABossCharacter::IsRecovering() const
 {
 	return GetWorld()->GetTimeSeconds() < RecoverUntilTime;
+}
+
+float ABossCharacter::GetHealthPercent() const
+{
+	return MaxHealth > 0.f ? Health / MaxHealth : 0.f;
 }
 
 void ABossCharacter::EnableHitbox(FName WhichHand)
@@ -279,7 +309,7 @@ void ABossCharacter::DisableHitboxes()
 
 void ABossCharacter::OnRightHitboxOverlap(UPrimitiveComponent*, AActor* OtherActor, UPrimitiveComponent*, int32, bool, const FHitResult& Hit)
 {
-	if (!OtherActor || OtherActor == this) return;
+	if (!OtherActor || OtherActor == this || bIsDead) return;
 	if (AlreadyHitActors.Contains(OtherActor)) return;
 
 	UGameplayStatics::ApplyPointDamage(OtherActor, 16.f, GetActorForwardVector(), Hit, GetController(), this, nullptr);
@@ -288,7 +318,7 @@ void ABossCharacter::OnRightHitboxOverlap(UPrimitiveComponent*, AActor* OtherAct
 
 void ABossCharacter::OnLeftHitboxOverlap(UPrimitiveComponent*, AActor* OtherActor, UPrimitiveComponent*, int32, bool, const FHitResult& Hit)
 {
-	if (!OtherActor || OtherActor == this) return;
+	if (!OtherActor || OtherActor == this || bIsDead) return;
 	if (AlreadyHitActors.Contains(OtherActor)) return;
 
 	UGameplayStatics::ApplyPointDamage(OtherActor, 16.f, GetActorForwardVector(), Hit, GetController(), this, nullptr);
@@ -297,27 +327,42 @@ void ABossCharacter::OnLeftHitboxOverlap(UPrimitiveComponent*, AActor* OtherActo
 
 void ABossCharacter::OnAnyDamageTaken(AActor*, float Damage, const UDamageType*, AController*, AActor*)
 {
-	Health = FMath::Max(0.f, Health - Damage);
-	int32 NewPhase = Phase;
+	if (bIsDead) return;
 
+	const float OldHealth = Health;
+	Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
+
+	// Avisar HUD
+	if (!FMath::IsNearlyEqual(OldHealth, Health))
+	{
+		OnHealthChanged.Broadcast(Health, MaxHealth);
+	}
+
+	// ¿Murió?
 	if (Health <= 0.f)
 	{
-		// TODO: muerte del boss
+		Die();
+		return;
 	}
-	else if (Health < 350.f) NewPhase = 3;
+
+	// Fases
+	int32 NewPhase = Phase;
+	if (Health < 350.f)      NewPhase = 3;
 	else if (Health < 700.f) NewPhase = 2;
 
 	if (NewPhase != Phase)
 	{
 		Phase = NewPhase;
-		if (Phase == 2) { Cooldowns[EBossAttack::Meteors] = 10.f; }
-		if (Phase == 3) { Cooldowns[EBossAttack::Meteors] = 8.f; }
+		if (Phase == 2) { Cooldowns.FindOrAdd(EBossAttack::Meteors) = 10.f; }
+		if (Phase == 3) { Cooldowns.FindOrAdd(EBossAttack::Meteors) = 8.f; }
 	}
 }
 
 // ===== FUEGO =====
 void ABossCharacter::StartFireBreath()
 {
+	if (bIsDead) return;
+
 	FireCapsule->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
 	if (FireLoopSFX && !FireAudioComp)
@@ -342,6 +387,8 @@ void ABossCharacter::StopFireBreath()
 
 void ABossCharacter::DealFireTick()
 {
+	if (bIsDead) return;
+
 	TArray<AActor*> HitActors;
 	FireCapsule->GetOverlappingActors(HitActors, APawn::StaticClass());
 	for (AActor* A : HitActors)
@@ -356,6 +403,8 @@ void ABossCharacter::DealFireTick()
 // ===== METEORITOS =====
 void ABossCharacter::TriggerMeteorWave(AActor* TargetHint)
 {
+	if (bIsDead) return;
+
 	if (!MeteorWarningClass || !MeteorProjectileClass)
 	{
 		UE_LOG(LogBoss, Warning, TEXT("Meteor classes not assigned."));
@@ -381,7 +430,7 @@ void ABossCharacter::TriggerMeteorWave(AActor* TargetHint)
 			continue;
 		}
 
-		// Warning
+		// Warning decal/actor
 		FTransform TW(FRotator::ZeroRotator, Ground);
 		if (AMeteorWarning* W = GetWorld()->SpawnActorDeferred<AMeteorWarning>(MeteorWarningClass, TW, this, this))
 		{
@@ -389,7 +438,7 @@ void ABossCharacter::TriggerMeteorWave(AActor* TargetHint)
 			W->FinishSpawning(TW);
 		}
 
-		// Meteor tras el warning
+		// Meteor después del warning
 		FTimerHandle Tmp;
 		GetWorldTimerManager().SetTimer(
 			Tmp,
@@ -402,7 +451,7 @@ void ABossCharacter::TriggerMeteorWave(AActor* TargetHint)
 
 void ABossCharacter::SpawnMeteorAt(FVector GroundPos)
 {
-	if (!MeteorProjectileClass) return;
+	if (bIsDead || !MeteorProjectileClass) return;
 
 	const FVector SpawnPos = GroundPos + FVector(0, 0, FMath::FRandRange(1800.f, 2800.f));
 	const FTransform TM(FRotator::ZeroRotator, SpawnPos);
@@ -426,7 +475,7 @@ bool ABossCharacter::FindGroundBelow(const FVector& Start, FVector& OutGround, f
 		OutGround = Hit.ImpactPoint;
 		return true;
 	}
-	// 2) WorldStatic como fallback
+	// 2) WorldStatic fallback
 	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECollisionChannel::ECC_WorldStatic, Q))
 	{
 		OutGround = Hit.ImpactPoint;
@@ -453,7 +502,7 @@ float ABossCharacter::IdealMaxDistance(EBossAttack A) const
 	switch (A)
 	{
 	case EBossAttack::Jab:        return 250.f;
-	case EBossAttack::Swipe:      return 1200.f;  // compacto para favorecer persecución
+	case EBossAttack::Swipe:      return 1200.f;
 	case EBossAttack::Slam:       return 350.f;
 	case EBossAttack::FireBreath: return 800.f;
 	case EBossAttack::Meteors:    return 5000.f;
@@ -467,7 +516,6 @@ EBossAttack ABossCharacter::RandomWeightedAttack(float Dist, const AActor*) cons
 	auto TryAdd = [&](EBossAttack A, int32 Weight)
 		{
 			if (!CanUseAttack(A)) return;
-			// Meteors puede no tener montage; los demás sí deben tener
 			if (A != EBossAttack::Meteors && !GetMontageFor(A)) return;
 			if (Dist < IdealMinDistance(A) || Dist > IdealMaxDistance(A)) return;
 			for (int32 i = 0;i < Weight;i++) Pool.Add(A);
@@ -478,7 +526,7 @@ EBossAttack ABossCharacter::RandomWeightedAttack(float Dist, const AActor*) cons
 		TryAdd(EBossAttack::Jab, 6);
 		TryAdd(EBossAttack::Slam, 3);
 		TryAdd(EBossAttack::Swipe, 2);
-		TryAdd(EBossAttack::Meteors, 1); // leve para test
+		TryAdd(EBossAttack::Meteors, 1);
 	}
 	else if (Phase == 2)
 	{
@@ -498,4 +546,100 @@ EBossAttack ABossCharacter::RandomWeightedAttack(float Dist, const AActor*) cons
 	}
 
 	return Pool.Num() ? Pool[FMath::RandRange(0, Pool.Num() - 1)] : EBossAttack::None;
+}
+
+// ===== Helpers de parada =====
+void ABossCharacter::StopAllCombatAndTimers()
+{
+	DisableHitboxes();
+	StopFireBreath();
+	// Cancela todos los timers asociados (incluye diferidos de meteoritos)
+	GetWorldTimerManager().ClearAllTimersForObject(this);
+}
+
+void ABossCharacter::StopAllAnimationsAndMontages(float BlendOut)
+{
+	if (USkeletalMeshComponent* Skel = GetMesh())
+	{
+		if (UAnimInstance* Anim = Skel->GetAnimInstance())
+		{
+			Anim->StopAllMontages(BlendOut);
+		}
+	}
+}
+
+// ===== Muerte =====
+void ABossCharacter::Die()
+{
+	if (bIsDead) return;
+	bIsDead = true;
+
+	// Cortar combate/efectos/timers
+	bIsAttacking = false;
+	bInIntro = false;
+	StopAllCombatAndTimers();
+
+	// Notificar UI/otros
+	OnBossDied.Broadcast();
+
+	// Parar IA y movimiento
+	if (AAIController* AIC = Cast<AAIController>(GetController()))
+	{
+		AIC->StopMovement();
+		if (UBrainComponent* Brain = AIC->GetBrainComponent())
+		{
+			Brain->StopLogic(TEXT("Boss died"));
+		}
+	}
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	// Evitar bloquear al jugador tras morir
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+
+	// Detén lo actual antes de reproducir muerte
+	StopAllAnimationsAndMontages(0.1f);
+
+	// Reproducir Death Montage si existe; si no, fallback ragdoll
+	if (DeathMontage && GetMesh() && GetMesh()->GetAnimInstance())
+	{
+		UAnimInstance* Anim = GetMesh()->GetAnimInstance();
+
+		Anim->Montage_Play(DeathMontage, 1.f);
+
+		// BlendOut para congelar justo al terminar
+		FOnMontageBlendingOutStarted BlendOut;
+		BlendOut.BindUObject(this, &ABossCharacter::OnMontageBlendingOut);
+		Anim->Montage_SetBlendingOutDelegate(BlendOut, DeathMontage);
+
+		FOnMontageEnded End;
+		End.BindUObject(this, &ABossCharacter::OnMontageEnded);
+		Anim->Montage_SetEndDelegate(End, DeathMontage);
+	}
+	else
+	{
+		// Ragdoll de respaldo
+		if (GetMesh())
+		{
+			GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+			GetMesh()->SetSimulatePhysics(true);
+		}
+		SetLifeSpan(DeathLifeSpan);
+	}
+}
+
+void ABossCharacter::FreezeDeathPose()
+{
+	if (bDeathPoseFrozen) return;
+	bDeathPoseFrozen = true;
+
+	// Pausa la animación exactamente en la pose actual
+	if (USkeletalMeshComponent* Skel = GetMesh())
+	{
+		Skel->bPauseAnims = true;            // congela pose
+		Skel->SetComponentTickEnabled(false); // evita reevaluaciones
+	}
+
+	// Desaparición programada
+	SetLifeSpan(DeathLifeSpan);
 }

@@ -24,6 +24,8 @@ enum class EBossAttack : uint8
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossIntroEnded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBossHealthChanged, float, NewHealth, float, MaxHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossDied);
 
 UCLASS()
 class CATSHIFT_API ABossCharacter : public ACharacter
@@ -34,6 +36,9 @@ public:
 	ABossCharacter();
 
 	// ====== ESTADO ======
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stats")
+	float MaxHealth = 1000.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Boss|Stats")
 	float Health = 1000.f;
 
@@ -47,13 +52,16 @@ public:
 	bool bIsAttacking = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Boss|State")
+	bool bIsDead = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Boss|State")
 	EBossAttack CurrentAttack = EBossAttack::None;
 
-	// Pequeño respiro tras cada ataque
+	// Respiro tras cada ataque
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Flow", meta = (ClampMin = "0.0", ClampMax = "5.0"))
 	float PostAttackRecovery = 1.0f;
 
-	// ====== ORIENTACIÓN (girar en eje Z hacia el jugador) ======
+	// ====== ORIENTACIÓN (giro yaw hacia el jugador) ======
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Facing")
 	bool bAlwaysFacePlayer = true;
 
@@ -88,38 +96,45 @@ public:
 
 	// ====== MONTAGES ======
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
-	UAnimMontage* IntroMontage;
+	UAnimMontage* IntroMontage = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
-	UAnimMontage* JabMontage;     // Puño
+	UAnimMontage* JabMontage = nullptr;     // Puño
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
-	UAnimMontage* SwipeMontage;   // Carga
+	UAnimMontage* SwipeMontage = nullptr;   // Carga
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
-	UAnimMontage* SlamMontage;    // Golpe al suelo
+	UAnimMontage* SlamMontage = nullptr;    // Golpe al suelo
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
-	UAnimMontage* FireBreathMontage;
+	UAnimMontage* FireBreathMontage = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
-	UAnimMontage* MeteorsMontage;
+	UAnimMontage* MeteorsMontage = nullptr;
+
+	// **Muerte**
+	UPROPERTY(EditDefaultsOnly, Category = "Boss|Montages")
+	UAnimMontage* DeathMontage = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Boss|Death", meta = (ClampMin = "0.0", ClampMax = "30.0"))
+	float DeathLifeSpan = 6.f;
 
 	// ====== AUDIO ======
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Audio")
-	USoundBase* IntroRoarSFX;
+	USoundBase* IntroRoarSFX = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Audio")
-	USoundBase* PunchWhooshSFX;
+	USoundBase* PunchWhooshSFX = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Audio")
-	USoundBase* ChargeWhooshSFX;
+	USoundBase* ChargeWhooshSFX = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Audio")
-	USoundBase* SlamWhooshSFX;
+	USoundBase* SlamWhooshSFX = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Boss|Audio")
-	USoundBase* FireLoopSFX;
+	USoundBase* FireLoopSFX = nullptr;
 
 	UPROPERTY()
 	UAudioComponent* FireAudioComp = nullptr;
@@ -158,13 +173,19 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Boss|Events")
 	FOnBossIntroEnded OnIntroEnded;
 
+	UPROPERTY(BlueprintAssignable, Category = "Boss|Events")
+	FOnBossHealthChanged OnHealthChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Boss|Events")
+	FOnBossDied OnBossDied;
+
 	// ====== API ======
 	UFUNCTION(BlueprintCallable) void PlayIntro();
 	UFUNCTION(BlueprintCallable) bool PlayAttack(EBossAttack Attack, AActor* Target);
 	UFUNCTION(BlueprintCallable) bool CanUseAttack(EBossAttack Attack) const;
 	UFUNCTION(BlueprintCallable) void MarkAttackUsed(EBossAttack Attack);
 
-	// Notifies BP
+	// Notifies BP (desde AnimNotifies)
 	UFUNCTION(BlueprintCallable) void EnableHitbox(FName WhichHand);
 	UFUNCTION(BlueprintCallable) void DisableHitboxes();
 	UFUNCTION(BlueprintCallable) void StartFireBreath();
@@ -176,7 +197,18 @@ public:
 	float IdealMinDistance(EBossAttack Attack) const;
 	float IdealMaxDistance(EBossAttack Attack) const;
 
+	UFUNCTION(BlueprintPure, Category = "Boss|Stats")
+	float GetHealthPercent() const;
+
 	UFUNCTION(BlueprintCallable) bool IsRecovering() const;
+
+	// Muerte
+	UFUNCTION(BlueprintCallable, Category = "Boss|Death")
+	void Die();
+
+	// Congelar pose de muerte (último frame)
+	UFUNCTION(BlueprintCallable, Category = "Boss|Death")
+	void FreezeDeathPose();
 
 protected:
 	virtual void BeginPlay() override;
@@ -213,4 +245,10 @@ private:
 
 	// Recuperación entre ataques
 	double RecoverUntilTime = 0.0;
+
+	// Helpers muerte/parada
+	void StopAllCombatAndTimers();                         // apaga fuego/hitboxes y timers
+	void StopAllAnimationsAndMontages(float BlendOut = 0.15f); // detiene animaciones/montajes
+
+	bool bDeathPoseFrozen = false;
 };
