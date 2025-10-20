@@ -50,7 +50,6 @@ void UShieldComponent::BindInput()
 
 	if (!bInputBound)
 	{
-		// Debe existir la acción "Shield" -> Space Bar
 		OwnerCharacter->InputComponent->BindAction("Shield", IE_Pressed, this, &UShieldComponent::StartShield);
 		OwnerCharacter->InputComponent->BindAction("Shield", IE_Released, this, &UShieldComponent::EndShield);
 		bInputBound = true;
@@ -82,10 +81,10 @@ void UShieldComponent::StartShield()
 	// Audio
 	StartLoopAudio();
 
-	// Límite de tiempo si aplica
+	// Límite de tiempo -> al cumplirse, llamamos EndShield() (así entra cooldown)
 	if (MaxHoldSeconds > 0.f)
 	{
-		GetWorld()->GetTimerManager().SetTimer(TH_MaxHold, this, &UShieldComponent::ForceEndShield, MaxHoldSeconds, false);
+		GetWorld()->GetTimerManager().SetTimer(TH_MaxHold, this, &UShieldComponent::EndShield, MaxHoldSeconds, false);
 	}
 }
 
@@ -94,15 +93,21 @@ void UShieldComponent::EndShield()
 	if (!bShieldActive || !OwnerCharacter.IsValid())
 		return;
 
+	// Limpia tiempo de hold si lo había
 	GetWorld()->GetTimerManager().ClearTimer(TH_MaxHold);
+
 	ForceEndShield();
 
+	// Cooldown SIEMPRE después de terminar (por suelta o por tiempo)
 	if (CooldownSeconds > 0.f)
 	{
 		bOnCooldown = true;
+		OnCooldownStart.Broadcast(CooldownSeconds);
+
 		GetWorld()->GetTimerManager().SetTimer(TH_Cooldown, [this]()
 			{
 				bOnCooldown = false;
+				OnCooldownEnd.Broadcast();
 			}, CooldownSeconds, false);
 	}
 }
@@ -226,8 +231,6 @@ void UShieldComponent::SyncVisualToRadius()
 					CapsuleHalfHeight = Cap->GetScaledCapsuleHalfHeight();
 				}
 			}
-			// Pivot del Character ~ centro de la cápsula.
-			// Para que la esfera toque suelo: offset = SphereRadius - HalfHeight
 			DesiredZ += (SphereRadius - CapsuleHalfHeight);
 		}
 
@@ -365,4 +368,18 @@ void UShieldComponent::OnShieldLoopFinished()
 	{
 		ShieldLoopAC->Play(0.f);
 	}
+}
+
+/* ==================== COOLdown getters (HUD) ==================== */
+
+float UShieldComponent::GetCooldownRemaining() const
+{
+	if (!bOnCooldown || !GetWorld()) return 0.f;
+	return GetWorld()->GetTimerManager().GetTimerRemaining(TH_Cooldown);
+}
+
+float UShieldComponent::GetCooldownRatio() const
+{
+	const float Remaining = GetCooldownRemaining();
+	return (CooldownSeconds > 0.f) ? (Remaining / CooldownSeconds) : 0.f;
 }

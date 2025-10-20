@@ -8,6 +8,7 @@
 class UStartMenuWidget;
 class UTutorialWidget;
 class UTexture2D;
+class UInputMappingContext; // Enhanced Input (opcional)
 
 UCLASS()
 class CATSHIFT_API ACatshiftGameMode : public AGameModeBase
@@ -36,6 +37,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
 	bool bPauseDuringMenus = true;
 
+	/** (Opcional) Enhanced Input: Mapping de gameplay para reañadir tras el tutorial */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	UInputMappingContext* GameplayMapping = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	int32 GameplayMappingPriority = 0;
+
 private:
 	UPROPERTY() UStartMenuWidget* StartMenu = nullptr;
 	UPROPERTY() UTutorialWidget* Tutorial = nullptr;
@@ -46,4 +54,7 @@ private:
 	UFUNCTION() void HandleStartRequested();
 	UFUNCTION() void HandleExitRequested();
 	UFUNCTION() void HandleTutorialFinished();
+
+	/** Reaplica InputMode y mapping de gameplay (Enhanced Input opcional) */
+	void ForceRestoreGameInput();
 };

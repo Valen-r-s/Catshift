@@ -60,13 +60,11 @@ void AWaveSpawner::OnStartZoneBeginOverlap(UPrimitiveComponent* OverlappedComp, 
 
 void AWaveSpawner::StartWaves()
 {
-	if (bStarted)
-	{
-		return;
-	}
+	if (bStarted) return;
 
 	bStarted = true;
 	WaveIndex = 0;
+	bWaveClearHandled = false;
 
 	// Si TotalWaves == 0 -> infinito; si > 0, se respetará el conteo.
 	StartNextWave();
@@ -88,16 +86,10 @@ void AWaveSpawner::BuildSpawnQueue()
 
 	SpawnQueue.Reserve(TotalCount);
 
-	for (int32 i = 0; i < SafeA; ++i)
-	{
-		SpawnQueue.Add(0); // Tipo A
-	}
-	for (int32 i = 0; i < SafeB; ++i)
-	{
-		SpawnQueue.Add(1); // Tipo B
-	}
+	for (int32 i = 0; i < SafeA; ++i) { SpawnQueue.Add(0); } // Tipo A
+	for (int32 i = 0; i < SafeB; ++i) { SpawnQueue.Add(1); } // Tipo B
 
-	// Barajar sin dependencias: Fisher-Yates
+	// Barajar sin dependencias: Fisher–Yates
 	if (bShuffleQueue && SpawnQueue.Num() > 1)
 	{
 		for (int32 i = SpawnQueue.Num() - 1; i > 0; --i)
@@ -116,26 +108,27 @@ void AWaveSpawner::StartNextWave()
 	// ¿Hemos terminado?
 	if (TotalWaves > 0 && WaveIndex >= TotalWaves)
 	{
-		if (bOnlyOnce)
-		{
-			// Nada más que hacer
-			return;
-		}
-		else
-		{
-			// Reiniciar ciclo infinito
-			WaveIndex = 0;
-		}
+		if (bOnlyOnce) { return; }
+		else { WaveIndex = 0; } // ciclo infinito
 	}
+
+	bWaveClearHandled = false; // reset del guard
 
 	// Prepara la cola
 	BuildSpawnQueue();
 
-	// Si no hay nada que spawnear, avanza al siguiente ciclo tras la espera
+	// Si esta oleada no tiene nada que spawnear
 	if (RemainingToSpawn <= 0)
 	{
-		++WaveIndex;
-		GetWorldTimerManager().SetTimer(TimerHandle_WaveDelay, this, &AWaveSpawner::StartNextWave, DelayBetweenWaves, false);
+		// Si además no hay vivos ? se considera “cleared”
+		if (AliveCount <= 0)
+		{
+			HandleWaveCleared();
+			return;
+		}
+
+		// Si hay vivos de antes, esperar a que mueran
+		GetWorldTimerManager().SetTimer(TimerHandle_SpawnTick, this, &AWaveSpawner::SpawnTick, SpawnInterval, false);
 		return;
 	}
 
@@ -173,16 +166,14 @@ void AWaveSpawner::SpawnTick()
 			APawn* Spawned = GetWorld()->SpawnActor<APawn>(ClassToSpawn, SpawnTM, Params);
 			if (Spawned)
 			{
-				// Contabiliza
 				++AliveCount;
 
-				// Asegura que tenga controller para que funcione el AI Move/Perception
+				// Asegura AIController aunque el BP no esté bien configurado
 				if (!Spawned->GetController())
 				{
 					Spawned->SpawnDefaultController();
 				}
 
-				// Notificación al morir
 				Spawned->OnDestroyed.AddDynamic(this, &AWaveSpawner::OnEnemyDestroyed);
 			}
 		}
@@ -195,12 +186,9 @@ void AWaveSpawner::SpawnTick()
 	// Si ya no queda nada por spawnear, esperamos a que mueran los vivos para cerrar la oleada
 	if (RemainingToSpawn <= 0)
 	{
-		// ¿Ya terminó la oleada?
 		if (AliveCount <= 0)
 		{
-			// Oleada completada
-			++WaveIndex;
-			GetWorldTimerManager().SetTimer(TimerHandle_WaveDelay, this, &AWaveSpawner::StartNextWave, DelayBetweenWaves, false);
+			HandleWaveCleared();
 			return;
 		}
 
@@ -217,11 +205,10 @@ void AWaveSpawner::OnEnemyDestroyed(AActor* DestroyedActor)
 {
 	AliveCount = FMath::Max(0, AliveCount - 1);
 
-	// Si ya no queda cola y no queda nadie vivo, cerrar y programar siguiente oleada
+	// Si ya no queda cola y no queda nadie vivo, cerrar y programar siguiente paso
 	if (RemainingToSpawn <= 0 && AliveCount <= 0)
 	{
-		++WaveIndex;
-		GetWorldTimerManager().SetTimer(TimerHandle_WaveDelay, this, &AWaveSpawner::StartNextWave, DelayBetweenWaves, false);
+		HandleWaveCleared();
 	}
 }
 
@@ -260,4 +247,69 @@ FTransform AWaveSpawner::MakeRandomSpawnTransform() const
 	// Rotación aleatoria en yaw
 	const FRotator YawRot(0.f, FMath::FRandRange(0.f, 360.f), 0.f);
 	return FTransform(YawRot, WorldPos, FVector(1.f));
+}
+
+FTransform AWaveSpawner::MakeSpawnAreaCenterTransform() const
+{
+	// Centro del box en mundo
+	FVector WorldPos = SpawnArea ? SpawnArea->GetComponentLocation() : GetActorLocation();
+
+	// (Opcional) proyectar a nav; luego fijamos Z igualmente
+	if (bUseNavmeshProjection)
+	{
+		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+		{
+			FNavLocation Projected;
+			if (NavSys->ProjectPointToNavigation(WorldPos, Projected, NavProjectExtent))
+			{
+				WorldPos = Projected.Location;
+			}
+		}
+	}
+
+	// Forzar altura a 0
+	WorldPos.Z = 0.f;
+
+	// Alinea yaw al del box (o del actor si faltara)
+	const float Yaw = SpawnArea ? SpawnArea->GetComponentRotation().Yaw : GetActorRotation().Yaw;
+	return FTransform(FRotator(0.f, Yaw, 0.f), WorldPos, FVector(1.f));
+}
+
+void AWaveSpawner::HandleWaveCleared()
+{
+	// Evitar manejarlo dos veces
+	if (bWaveClearHandled) return;
+	bWaveClearHandled = true;
+
+	// Recompensas en el centro
+	SpawnRewards();
+
+	// ¿Detener spawner al limpiar?
+	if (bStopWhenCleared)
+	{
+		bStarted = false;
+		GetWorldTimerManager().ClearTimer(TimerHandle_SpawnTick);
+		GetWorldTimerManager().ClearTimer(TimerHandle_WaveDelay);
+		return;
+	}
+
+	// Continuar con la siguiente oleada
+	++WaveIndex;
+	GetWorldTimerManager().SetTimer(TimerHandle_WaveDelay, this, &AWaveSpawner::StartNextWave, DelayBetweenWaves, false);
+}
+
+void AWaveSpawner::SpawnRewards()
+{
+	if (RewardCount <= 0 || !RewardClass) return;
+
+	const FTransform CenterT = MakeSpawnAreaCenterTransform();
+
+	for (int32 i = 0; i < RewardCount; ++i)
+	{
+		FActorSpawnParameters Params;
+		// EXACTAMENTE en el centro (no ajustar por colisiones)
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		GetWorld()->SpawnActor<AActor>(RewardClass, CenterT, Params);
+	}
 }

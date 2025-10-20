@@ -1,3 +1,4 @@
+// WaveSpawner.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -95,6 +96,22 @@ protected:
 	FVector NavProjectExtent = FVector(50.f, 50.f, 200.f);
 
 	/* =======================
+	   Fin de oleada / recompensas
+	======================= */
+
+	/** Si es true, cuando mueren todos los enemigos se DETIENE el spawner. */
+	UPROPERTY(EditAnywhere, Category = "Wave|End")
+	bool bStopWhenCleared = true;
+
+	/** Clase Blueprint a generar como recompensa al limpiar (puede ser cualquier Actor). */
+	UPROPERTY(EditAnywhere, Category = "Wave|Rewards")
+	TSubclassOf<AActor> RewardClass;
+
+	/** Cantidad de recompensas a generar al limpiar. */
+	UPROPERTY(EditAnywhere, Category = "Wave|Rewards", meta = (ClampMin = "0"))
+	int32 RewardCount = 0;
+
+	/* =======================
 	   Estado interno (debug)
 	======================= */
 	UPROPERTY(VisibleAnywhere, Category = "Wave|Debug")
@@ -114,6 +131,9 @@ protected:
 
 	/** Índice actual en la cola */
 	int32 QueueIndex = 0;
+
+	/** Guard para no manejar dos veces el “wave cleared” */
+	bool bWaveClearHandled = false;
 
 	/** Timers */
 	FTimerHandle TimerHandle_SpawnTick;
@@ -150,4 +170,13 @@ protected:
 
 	/** Devuelve un Transform aleatorio dentro de SpawnArea (con yaw random) proyectado a NavMesh si procede */
 	FTransform MakeRandomSpawnTransform() const;
+
+	/** Transform del centro exacto del SpawnArea (con Z forzada a 0) */
+	FTransform MakeSpawnAreaCenterTransform() const;
+
+	/** Maneja el fin de oleada (todos muertos) ? recompensa + decidir si parar o seguir */
+	void HandleWaveCleared();
+
+	/** Spawnea recompensas si están configuradas (en el centro del SpawnArea) */
+	void SpawnRewards();
 };

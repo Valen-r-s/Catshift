@@ -10,6 +10,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 
+// Enhanced Input (opcional)
+#include "EnhancedInputSubsystems.h"
+
 ACatshiftGameMode::ACatshiftGameMode()
 {
 }
@@ -129,20 +132,30 @@ void ACatshiftGameMode::ShowTutorial()
 void ACatshiftGameMode::HandleTutorialFinished()
 {
 	// El widget ya despausó y puso GameOnly, pero reforzamos:
+	ForceRestoreGameInput();
+	Tutorial = nullptr;
+}
+
+void ACatshiftGameMode::ForceRestoreGameInput()
+{
 	UGameplayStatics::SetGamePaused(this, false);
 
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		FInputModeGameOnly Mode;
-		PC->SetInputMode(Mode);
+		FInputModeGameAndUI UI;
+		UI.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		UI.SetHideCursorDuringCapture(false);
+		UI.SetWidgetToFocus(nullptr);
+		PC->SetInputMode(UI);
 
-		PC->bShowMouseCursor = true;          // click-to-move normalmente lo usa visible
+		FInputModeGameOnly Game;
+		Game.SetConsumeCaptureMouseDown(false);
+		PC->SetInputMode(Game);
+
+		PC->bShowMouseCursor = true;
 		PC->bEnableClickEvents = true;
 		PC->bEnableMouseOverEvents = true;
-
 		PC->FlushPressedKeys();
 		UWidgetBlueprintLibrary::SetFocusToGameViewport();
 	}
-
-	Tutorial = nullptr;
 }

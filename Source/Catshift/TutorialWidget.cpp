@@ -114,28 +114,32 @@ void UTutorialWidget::TakeUIFocus()
 
 void UTutorialWidget::ReturnToGameInput()
 {
-	// Despausa por si el tutorial/menú pausó el juego
 	UGameplayStatics::SetGamePaused(this, false);
 
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		// Volver a modo juego
-		FInputModeGameOnly Mode;
-		PC->SetInputMode(Mode);
+		// 1) Forzar un “paso” por Game+UI para soltar cualquier captura
+		{
+			FInputModeGameAndUI UI;
+			UI.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			UI.SetHideCursorDuringCapture(false);
+			UI.SetWidgetToFocus(nullptr);           // sin widget a enfocar
+			PC->SetInputMode(UI);
+		}
 
-		// En top-down por mouse normalmente quieres cursor visible
+		// 2) Ir a GameOnly, evitando capturar el primer click
+		{
+			FInputModeGameOnly Game;
+			Game.SetConsumeCaptureMouseDown(false);
+			PC->SetInputMode(Game);
+		}
+
 		PC->bShowMouseCursor = true;
-
-		// Asegurar que todo input esté habilitado
-		PC->SetIgnoreLookInput(false);
-		PC->SetIgnoreMoveInput(false);
 		PC->bEnableClickEvents = true;
 		PC->bEnableMouseOverEvents = true;
-
-		// Limpiar entradas “pegadas” tras la UI
+		PC->SetIgnoreLookInput(false);
+		PC->SetIgnoreMoveInput(false);
 		PC->FlushPressedKeys();
-
-		// Devolver foco explícito al viewport del juego
 		UWidgetBlueprintLibrary::SetFocusToGameViewport();
 	}
 }
