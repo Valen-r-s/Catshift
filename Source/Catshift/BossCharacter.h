@@ -190,7 +190,7 @@ public:
 	UFUNCTION(BlueprintCallable) void DisableHitboxes();
 	UFUNCTION(BlueprintCallable) void StartFireBreath();
 	UFUNCTION(BlueprintCallable) void StopFireBreath();
-	UFUNCTION(BlueprintCallable) void TriggerMeteorWave(AActor* TargetHint);
+	UFUNCTION(BlueprintCallable) void TriggerMeteorWave(AActor* TargetHint); // ? FIX: AActor
 
 	// Utilidades
 	EBossAttack RandomWeightedAttack(float DistanceToTarget, const AActor* Target) const;

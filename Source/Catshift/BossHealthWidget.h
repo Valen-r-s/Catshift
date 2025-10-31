@@ -9,13 +9,12 @@ class UProgressBar;
 class UTextBlock;
 class ABossCharacter;
 
+
 UCLASS()
 class CATSHIFT_API UBossHealthWidget : public UUserWidget
 {
 	GENERATED_BODY()
-
 public:
-	// Asigna el boss y suscríbete a eventos
 	UFUNCTION(BlueprintCallable, Category = "BossHUD")
 	void SetBoss(ABossCharacter* InBoss);
 
@@ -23,12 +22,15 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	// Widgets (nómbralos igual en el BP derivado)
 	UPROPERTY(meta = (BindWidget))
 	UProgressBar* HealthBar = nullptr;
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* BossNameText = nullptr;
+
+	// << NUEVO: nombre fijo para mostrar en HUD >>
+	UPROPERTY(EditDefaultsOnly, Category = "BossHUD")
+	FText FixedBossName = NSLOCTEXT("BossHUD", "FixedBossName", "Demon King");
 
 private:
 	UPROPERTY()
@@ -40,3 +42,4 @@ private:
 	UFUNCTION()
 	void OnBossDied();
 };
+

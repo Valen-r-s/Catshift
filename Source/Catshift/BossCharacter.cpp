@@ -43,14 +43,15 @@ ABossCharacter::ABossCharacter()
 	LeftHitbox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	LeftHitbox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-	// Fire Capsule
+	// Fire Capsule (transform se controla desde el BP; aquí no se toca en runtime)
 	FireCapsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("FireCapsule"));
 	FireCapsule->SetupAttachment(GetMesh(), MouthSocketName);
 	FireCapsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FireCapsule->SetCollisionObjectType(ECC_WorldDynamic);
 	FireCapsule->SetCollisionResponseToAllChannels(ECR_Ignore);
 	FireCapsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	FireCapsule->InitCapsuleSize(120.f, 220.f);
+	FireCapsule->SetGenerateOverlapEvents(true);
+	FireCapsule->InitCapsuleSize(120.f, 220.f); // ajusta el tamaño en el BP si quieres más área
 
 	// Cooldowns por defecto
 	Cooldowns.Add(EBossAttack::Jab, 2.0f);
@@ -79,16 +80,8 @@ void ABossCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	// Orientar cono de fuego si está activo
-	if (!bIsDead && FireCapsule->GetCollisionEnabled() != ECollisionEnabled::NoCollision)
-	{
-		if (APawn* P = UGameplayStatics::GetPlayerPawn(this, 0))
-		{
-			const FVector From = GetMesh()->GetSocketLocation(MouthSocketName);
-			const FRotator Look = UKismetMathLibrary::FindLookAtRotation(From, P->GetActorLocation());
-			FireCapsule->SetWorldRotation(Look);
-		}
-	}
+	// ? No rotamos ni movemos la cápsula de fuego en runtime.
+	// Se mantiene exactamente donde la dejaste en el Blueprint.
 
 	// Giro yaw hacia el jugador
 	if (!bIsDead && bAlwaysFacePlayer && !bInIntro)
@@ -190,6 +183,7 @@ bool ABossCharacter::PlayAttack(EBossAttack Attack, AActor* Target)
 			TriggerMeteorWave(Target);
 		}
 
+		// Sin fallback: el fuego se enciende solo con Anim Notifies (Start/StopFireBreath)
 		MarkAttackUsed(Attack);
 		return true;
 	}
@@ -254,7 +248,7 @@ void ABossCharacter::OnMontageBlendingOut(UAnimMontage* Montage, bool /*bInterru
 	// Apaga ventanas de daño al salir
 	DisableHitboxes();
 
-	// Cortar loop del fuego al salir de su montage
+	// Si el montage es de fuego, apagar el daño/sonido al salir
 	if (Montage == FireBreathMontage)
 	{
 		StopFireBreath();
@@ -363,7 +357,10 @@ void ABossCharacter::StartFireBreath()
 {
 	if (bIsDead) return;
 
+	// Activar solamente colisión/overlaps (sin mover la cápsula)
 	FireCapsule->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	FireCapsule->SetGenerateOverlapEvents(true);
+	FireCapsule->UpdateOverlaps();
 
 	if (FireLoopSFX && !FireAudioComp)
 	{

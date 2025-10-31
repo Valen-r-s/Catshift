@@ -8,16 +8,19 @@ void UBossHealthWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	// Si ya teníamos boss asignado antes de construir, inicializa
+	// Inicializa barra y nombre fijo
 	if (Boss && HealthBar)
 	{
 		HealthBar->SetPercent(Boss->GetHealthPercent());
+	}
+	if (BossNameText)
+	{
+		BossNameText->SetText(FixedBossName); // << SIEMPRE "Demon King"
 	}
 }
 
 void UBossHealthWidget::NativeDestruct()
 {
-	// Limpia bindings
 	if (Boss)
 	{
 		Boss->OnHealthChanged.RemoveDynamic(this, &UBossHealthWidget::OnBossHealthChanged);
@@ -41,9 +44,10 @@ void UBossHealthWidget::SetBoss(ABossCharacter* InBoss)
 		Boss->OnHealthChanged.AddDynamic(this, &UBossHealthWidget::OnBossHealthChanged);
 		Boss->OnBossDied.AddDynamic(this, &UBossHealthWidget::OnBossDied);
 
-		// Inicializar
 		if (HealthBar) HealthBar->SetPercent(Boss->GetHealthPercent());
-		if (BossNameText) BossNameText->SetText(FText::FromString(Boss->GetName()));
+
+		// << ANTES usabas GetName(); cámbialo por el nombre fijo >>
+		if (BossNameText) BossNameText->SetText(FixedBossName);
 	}
 }
 

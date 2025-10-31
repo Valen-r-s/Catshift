@@ -1,4 +1,3 @@
-// ======================= ABGMMusicManager.h =======================
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,188 +6,146 @@
 #include "Components/BoxComponent.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
+#include "ABGMMusicManager.generated.h"
 
-#include "ABGMMusicManager.generated.h" // <-- ÚLTIMO include SIEMPRE
-
-/* =================================================================
- *  A B G M M u s i c M a n a g e r   (Actor)
- *  - Maneja 2 playlists: Exploración y Boss
- *  - Rotación aleatoria sin repetir inmediata
- *  - FadeIn/FadeOut opcional
- *  - Controlable desde Blueprint
- * ================================================================*/
-UCLASS(Blueprintable, ClassGroup = (Audio))
+UCLASS(BlueprintType, Blueprintable)
 class CATSHIFT_API ABGMMusicManager : public AActor
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    ABGMMusicManager();
+	ABGMMusicManager();
+
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void SwitchToBoss(bool bImmediate);
+
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void SwitchToExploration(bool bImmediate);
+
+	UFUNCTION(BlueprintPure, Category = "BGM")
+	bool IsBossActive() const { return bBossActive; }
+
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void StartBGM();
+
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void StopBGM();
+
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void NextTrack();
 
 protected:
-    virtual void BeginPlay() override;
-    virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void BeginPlay() override;
 
-    /** Componente que reproduce la música */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BGM|Runtime")
-    UAudioComponent* AudioComp;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BGM")
+	UAudioComponent* AudioComp = nullptr;
 
-    /** Playlist de exploración (3 temas) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Playlists")
-    TArray<USoundBase*> ExplorationSongs;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BGM|Playlists")
+	TArray<USoundBase*> ExplorationSongs;
 
-    /** Playlist de Boss (3 temas) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Playlists")
-    TArray<USoundBase*> BossSongs;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "BGM|Playlists")
+	TArray<USoundBase*> BossSongs;
 
-    /** Volumen maestro (0.0–2.0) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings", meta = (ClampMin = "0.0", ClampMax = "2.0", UIMin = "0.0", UIMax = "2.0"))
-    float MusicVolume = 0.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Volume", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float MusicVolume = 1.0f;
 
-    /** Iniciar automáticamente */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings")
-    bool bAutoStart = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Fade")
+	bool bUseFade = true;
 
-    /** Evita repetir inmediatamente la misma pista */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings")
-    bool bNoImmediateRepeat = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Fade", meta = (EditCondition = "bUseFade", ClampMin = "0.0", UIMin = "0.0"))
+	float FadeOutTime = 1.0f;
 
-    /** Inicia con la playlist de Boss */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings")
-    bool bStartWithBoss = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Fade", meta = (EditCondition = "bUseFade", ClampMin = "0.0", UIMin = "0.0"))
+	float FadeInTime = 1.0f;
 
-    /** Usar FadeIn/FadeOut al cambiar pista/playlist */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings")
-    bool bUseFade = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Behavior")
+	bool bStartAtRandomIndex = true;
 
-    /** Duraciones de fade (s) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings", meta = (EditCondition = "bUseFade", ClampMin = "0.0", UIMin = "0.0"))
-    float FadeOutTime = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Behavior")
+	bool bNoImmediateRepeat = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Settings", meta = (EditCondition = "bUseFade", ClampMin = "0.0", UIMin = "0.0"))
-    float FadeInTime = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Behavior")
+	bool bAutoStart = true;
 
-    /** Logs */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Debug")
-    bool bDebugLog = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Behavior")
+	bool bStartWithBoss = false;
 
-    /** Playlist activa (copia de Exploration o Boss) */
-    UPROPERTY(Transient)
-    TArray<USoundBase*> ActiveSongs;
-
-    /** ¿Está activa la playlist de Boss? */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "BGM|Runtime")
-    bool bBossActive = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BGM|Debug")
+	bool bDebugLog = false;
 
 private:
-    UFUNCTION()
-    void HandleFinished();
+	UPROPERTY(Transient)
+	TArray<USoundBase*> ActiveSongs;
 
-    void RefillQueue();
-    void PlayIndex(int32 Index, bool bFadeIn = false);
-    void PlayNextInternal();
-    void ApplyPlaylist(const TArray<USoundBase*>& NewList, bool bImmediate);
+	bool bBossActive = false;
+	int32 CurrentIndex = INDEX_NONE;
+	int32 LastIndex = INDEX_NONE;
 
-    /** Cola barajada de índices de ActiveSongs */
-    TArray<int32> Queue;
+	TArray<int32> Queue;
 
-    int32 LastIndex = -1;
-    int32 CurrentIndex = -1;
+	FTimerHandle Th_AfterFade;
+	FTimerHandle Th_FallbackFinish;
 
-    /** Timer para coordinar FadeOut ? nueva pista */
-    FTimerHandle Th_AfterFade;
+	void ApplyPlaylist(const TArray<USoundBase*>& NewList, bool bImmediate);
+	void PlayIndex(int32 Index, bool bFadeIn);
+	void PlayNextInternal();
+	void RefillQueue();
 
-public:
-    /** Inicia la reproducción (elige aleatoria si no suena nada) */
-    UFUNCTION(BlueprintCallable, Category = "BGM")
-    void StartBGM();
+	// >>> Cambiado: handler SIN parámetros para OnAudioFinished (Blueprint)
+	UFUNCTION()
+	void HandleFinished_BP();
 
-    /** Detiene la reproducción */
-    UFUNCTION(BlueprintCallable, Category = "BGM")
-    void StopBGM();
-
-    /** Siguiente pista */
-    UFUNCTION(BlueprintCallable, Category = "BGM")
-    void NextTrack();
-
-    /** Ajusta volumen en runtime */
-    UFUNCTION(BlueprintCallable, Category = "BGM")
-    void SetMusicVolume(float NewVolume);
-
-    /** Cambiar a Boss */
-    UFUNCTION(BlueprintCallable, Category = "BGM|Playlists")
-    void SwitchToBoss(bool bImmediate);
-
-    /** Cambiar a Exploración */
-    UFUNCTION(BlueprintCallable, Category = "BGM|Playlists")
-    void SwitchToExploration(bool bImmediate);
-
-    /** Info */
-    UFUNCTION(BlueprintPure, Category = "BGM|Info")
-    int32 GetCurrentIndex() const { return CurrentIndex; }
-
-    UFUNCTION(BlueprintPure, Category = "BGM|Info")
-    USoundBase* GetCurrentSong() const;
-
-    UFUNCTION(BlueprintPure, Category = "BGM|Info")
-    bool IsBossActive() const { return bBossActive; }
+	bool IsPlaying() const { return AudioComp && AudioComp->IsPlaying(); }
+	float GetCurrentDurationSafe(USoundBase* Snd) const;
 };
 
-/* =================================================================
- *  A B G M M u s i c Z o n e   (Actor)
- *  - Trigger que conmuta playlists al entrar/salir
- *  - Puede autoencontrar el manager por Tag ("MusicManager")
- * ================================================================*/
-UCLASS(Blueprintable)
+UCLASS(BlueprintType, Blueprintable)
 class CATSHIFT_API ABGMMusicZone : public AActor
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    ABGMMusicZone();
+	ABGMMusicZone();
 
 protected:
-    virtual void BeginPlay() override;
+	virtual void BeginPlay() override;
 
-    /** Volumen de colisión (Trigger) */
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Music Zone")
-    UBoxComponent* TriggerBox;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Music Zone")
+	UBoxComponent* TriggerBox;
 
-    /** Referencia al Music Manager (asigna en el nivel o auto-busca por Tag) */
-    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Music Zone", meta = (ExposeOnSpawn = "true"))
-    ABGMMusicManager* MusicManager = nullptr;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
+	bool bImmediate = true;
 
-    /** Buscar automáticamente el manager por Tag si no se asigna */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Find")
-    bool bAutoFindManager = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
+	bool bOnlyOnce = false;
 
-    /** Tag a buscar para el Music Manager */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Find")
-    FName ManagerTag = TEXT("MusicManager");
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
+	bool bSwitchBackOnExit = true;
 
-    /** Cambiar inmediatamente (FadeOut/FadeIn lo maneja el manager) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
-    bool bImmediate = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
+	bool bGuardIfAlreadyActive = true;
 
-    /** Volver a Exploración al salir del trigger */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
-    bool bSwitchBackOnExit = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float ReTriggerCooldown = 0.5f;
 
-    /** Solo hacer el cambio una vez (ignora siguientes entradas) */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Behavior")
-    bool bOnlyOnce = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Music Zone|Refs")
+	ABGMMusicManager* MusicManager = nullptr;
 
 private:
-    bool bAlreadySwitched = false;
+	bool bAlreadySwitched = false;
+	double LastSwitchTime = -1.0;
 
-    UFUNCTION()
-    void OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
-        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
-        const FHitResult& SweepResult);
+	bool CanSwitch() const;
+	void  MarkSwitched();
 
-    UFUNCTION()
-    void OnBoxEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
-        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	UFUNCTION()
+	void OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+		const FHitResult& SweepResult);
 
-    void TryAutoFindManager();
+	UFUNCTION()
+	void OnBoxEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	void TryAutoFindManager();
 };
